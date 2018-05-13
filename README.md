@@ -2,6 +2,11 @@
 
 [![license](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
 
+## NEW: Generating adversarial examples
+```
+python ./gen_attack.py model_data/yolo.h5 -o images/out_adv_[lr]
+```
+
 ## Welcome to YAD2K
 
 You only look once, but you reimplement neural nets over and over again.

@@ -167,7 +167,7 @@ def _main(args):
                 }
             )
             r = g_target - g_correct
-            gamma = 0.01
+            gamma = 0.1
             r = gamma * r / (np.abs(np.max(r)) + 1e-7)
             # g_correct = g_correct / (np.linalg.norm(g_correct) + 1e-7)
             # g_target = g_target / (np.linalg.norm(g_target) + 1e-7)
