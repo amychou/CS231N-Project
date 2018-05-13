@@ -2,6 +2,7 @@
 ```
 python ./gen_attack.py model_data/yolo.h5 -o images/out_adv_[lr]
 ```
+Preliminary results (https://docs.google.com/presentation/d/1rlGPjCWRS6_bC5sKs-n5q-v1bs1aRUhN1i8FwGIRTno/edit#slide=id.p)
 
 Original setup instructions:
 
