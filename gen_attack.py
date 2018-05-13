@@ -50,6 +50,14 @@ parser.add_argument(
     help='threshold for non max suppression IOU, default .5',
     default=.5)
 
+'''converts numpy array to PIL image'''
+def getImage(image_data, original_size):
+    image_data_processed = image_data.copy()
+    image_data_processed = image_data_processed[0] # remove batch dimension
+    image_data_processed *= 256
+    im =  Image.fromarray(np.uint8(image_data_processed), 'RGB')
+    resized_image = im.resize(original_size, Image.BICUBIC)
+    return resized_image
 
 
 def _main(args):
@@ -128,6 +136,7 @@ def _main(args):
             continue
 
         image = Image.open(os.path.join(test_path, image_file))
+        original_size = image.size
         if is_fixed_size:  # TODO: When resizing we can use minibatch input.
             resized_image = image.resize(
                 tuple(reversed(model_image_size)), Image.BICUBIC)
@@ -164,11 +173,8 @@ def _main(args):
             # g_target = g_target / (np.linalg.norm(g_target) + 1e-7)
             image_data_adv += r
 
-        print("Adversarial image stats")
-        diff = np.max(np.abs(image_data_adv-image_data))
-        print(diff)
-        print(np.max(np.abs(image_data_adv)))
-        print(np.max(np.abs(image_data)))
+        image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
+        image_adv = getImage(image_data_adv, original_size)
 
         print("Testing adversarial image")
         out_boxes, out_scores, out_classes = sess.run(
@@ -192,7 +198,7 @@ def _main(args):
 
             label = '{} {:.2f}'.format(predicted_class, score)
 
-            draw = ImageDraw.Draw(image)
+            draw = ImageDraw.Draw(image_adv)
             label_size = draw.textsize(label, font)
 
             top, left, bottom, right = box
@@ -218,7 +224,7 @@ def _main(args):
             draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
 
-        image.save(os.path.join(output_path, image_file), quality=90)
+        image_adv.save(os.path.join(output_path, image_file), quality=90)
     sess.close()
 
 
