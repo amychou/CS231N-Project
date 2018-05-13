@@ -156,8 +156,8 @@ def _main(args):
 
 
         print("Generating adversarial image")
-        for i in range(10):
-            print("Iteration " + str(i))
+        for i in range(30):
+            print("Iteration " + str(i+1))
             g_correct, g_target = sess.run(
                 [grad_correct, grad_target],
                 feed_dict={
@@ -166,14 +166,22 @@ def _main(args):
                     K.learning_phase(): 0
                 }
             )
-            r = g_target - g_correct
-            gamma = 0.1
-            r = gamma * r / (np.abs(np.max(r)) + 1e-7)
-            # g_correct = g_correct / (np.linalg.norm(g_correct) + 1e-7)
-            # g_target = g_target / (np.linalg.norm(g_target) + 1e-7)
-            image_data_adv += r
+            # Only factor in gradient from target
+            r = g_target
+            gamma = 0.01
+            r = gamma * r / (np.max(np.abs(r)) + 1e-7)
 
-        image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
+            # Factor in correct and target gradient
+            # gamma = 0.01
+            # g_correct = g_correct / (np.max(np.abs(g_correct)) + 1e-7)
+            # g_target = g_target / (np.max(np.abs(g_target)) + 1e-7)
+            # r = g_target-g_correct
+            # r = gamma * r / (np.max(np.abs(r)) + 1e-7)
+
+            image_data_adv += r
+            image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
+
+        # image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
         image_adv = getImage(image_data_adv, original_size)
 
         print("Testing adversarial image")
