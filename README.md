@@ -1,11 +1,14 @@
-# YAD2K: Yet Another Darknet 2 Keras
-
-[![license](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
-
-## NEW: Generating adversarial examples
+# CS231N: Adversarial attack on YOLO v2
 ```
 python ./gen_attack.py model_data/yolo.h5 -o images/out_adv_[lr]
 ```
+
+Original setup instructions:
+
+# YAD2K: Yet Another Darknet 2 Keras
+
+[![license](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
+--------------------------------------------------------------------------------
 
 ## Welcome to YAD2K
 
