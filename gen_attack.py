@@ -9,7 +9,8 @@ from keras import backend as K
 from keras.models import load_model
 from PIL import Image, ImageDraw, ImageFont
 
-from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_adv
+from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_adv, yolo_loss, preprocess_true_boxes
+from retrain_yolo import get_detector_mask
 
 parser = argparse.ArgumentParser(
     description='Run a YOLO_v2 style detection model on test images..')
@@ -126,6 +127,14 @@ def _main(args):
     grad_correct, = K.gradients(correct_scores_loss, yolo_model.input)
     target_scores_loss = K.sum(target_scores)
     grad_target, = K.gradients(target_scores_loss, yolo_model.input)
+    grad_sign = K.sign(grad_target)
+
+    # target_boxes = np.array([[[0.5, 0.5, 0.25, 0.25, 0]], [[0.5, 0.5, 0.25, 0.25, 0]], [[0.5, 0.5, 0.25, 0.25, 0]], [[0.5, 0.5, 0.25, 0.25, 0]], [[0.5, 0.5, 0.25, 0.25, 0]]], dtype=np.float32)
+    target_boxes = np.array([[[0.25, 0.25, 0.25, 0.25, 0]]], dtype=np.float32)
+    detectors_mask, matching_true_boxes = get_detector_mask(target_boxes, anchors)
+    args = (yolo_model.output, target_boxes, detectors_mask, matching_true_boxes)
+    model_loss = yolo_loss(args, anchors, len(class_names))
+    grad_mloss, = K.gradients(model_loss, yolo_model.input)
 
     for image_file in os.listdir(test_path):
         try:
@@ -154,22 +163,48 @@ def _main(args):
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
         image_data_adv = image_data.copy()
 
-
         print("Generating adversarial image")
-        for i in range(30):
+        for i in range(100):
             print("Iteration " + str(i+1))
-            g_correct, g_target = sess.run(
-                [grad_correct, grad_target],
+            mloss, g_mloss, = sess.run(
+                [model_loss, grad_mloss],
                 feed_dict={
                     yolo_model.input: image_data_adv,
                     input_image_shape: [image.size[1], image.size[0]],
                     K.learning_phase(): 0
                 }
             )
+            # Use sign instead of entire gradient
+            # print(type(g_mloss))
+            print(mloss)
+            r = g_mloss
+            gamma = 1e-1
+            r = gamma * r
+            # Gradient clipping?
+            # image_data_adv = np.clip(image_data_adv + r, 0, image_data_adv)
+            image_data_adv = image_data_adv - r
+
+        '''
+        print("Generating adversarial image")
+        for i in range(30):
+            print("Iteration " + str(i+1))
+            g_correct, g_target, g_sign = sess.run(
+                [grad_correct, grad_target, grad_sign],
+                feed_dict={
+                    yolo_model.input: image_data_adv,
+                    input_image_shape: [image.size[1], image.size[0]],
+                    K.learning_phase(): 0
+                }
+            )
+            # Use sign instead of entire gradient
+            r = g_sign
+            gamma = 1e-5
+            r = gamma * r
+
             # Only factor in gradient from target
-            r = g_target
-            gamma = 0.01
-            r = gamma * r / (np.max(np.abs(r)) + 1e-7)
+            # r = g_target
+            # gamma = 0.01
+            # r = gamma * r / (np.max(np.abs(r)) + 1e-7)
 
             # Factor in correct and target gradient
             # gamma = 0.01
@@ -178,9 +213,10 @@ def _main(args):
             # r = g_target-g_correct
             # r = gamma * r / (np.max(np.abs(r)) + 1e-7)
 
-            image_data_adv += r
-            image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
-
+            # Gradient clipping?
+            image_data_adv = np.clip(image_data_adv + r, 0, image_data_adv*(1+gamma))
+            # image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
+        '''
         # image_data_adv = image_data_adv / np.max(np.abs(image_data_adv)) # normalize
         image_adv = getImage(image_data_adv, original_size)
 

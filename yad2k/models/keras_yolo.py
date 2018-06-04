@@ -88,7 +88,10 @@ def yolo_head(feats, anchors, num_classes):
     """
     num_anchors = len(anchors)
     # Reshape to batch, height, width, num_anchors, box_params.
-    anchors_tensor = K.reshape(K.variable(anchors), [1, 1, 1, num_anchors, 2])
+    anchors_tensor = K.variable(anchors, dtype='float32')
+    K.get_session().run(tf.variables_initializer([anchors_tensor]))
+    anchors_tensor = K.reshape(anchors_tensor, [1, 1, 1, num_anchors, 2])
+    # anchors_tensor = K.reshape(K.variable(anchors), [1, 1, 1, num_anchors, 2])
 
     # Static implementation for fixed models.
     # TODO: Remove or add option for static implementation.
@@ -433,8 +436,10 @@ def preprocess_true_boxes(true_boxes, anchors, image_size):
         (conv_height, conv_width, num_anchors, num_box_params),
         dtype=np.float32)
 
-    for box in true_boxes:
+    #for box in true_boxes:
+    for b in range(true_boxes.shape[0]):
         # scale box to convolutional feature spatial dimensions
+        box = true_boxes[b,:].flatten()
         box_class = box[4:5]
         box = box[0:4] * np.array(
             [conv_width, conv_height, conv_width, conv_height])

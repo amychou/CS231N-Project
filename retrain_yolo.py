@@ -116,17 +116,17 @@ def process_data(images, boxes=None):
     if boxes is not None:
         # Box preprocessing.
         # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
-        boxes = [box.reshape((-1, 5)) for box in boxes]
+        boxes = [box.reshape((-1, 5)) for box in boxes] # boxes = list of (N, 5) (N boxes in an image)
         # Get extents as y_min, x_min, y_max, x_max, class for comparision with
         # model output.
-        boxes_extents = [box[:, [2, 1, 4, 3, 0]] for box in boxes]
+        boxes_extents = [box[:, [2, 1, 4, 3, 0]] for box in boxes] # boxes_extents = list of (1, 5)
 
         # Get box parameters as x_center, y_center, box_width, box_height, class.
-        boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in boxes]
+        boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in boxes] # list of (1, 2)
         boxes_wh = [box[:, 3:5] - box[:, 1:3] for box in boxes]
         boxes_xy = [boxxy / orig_size for boxxy in boxes_xy]
         boxes_wh = [boxwh / orig_size for boxwh in boxes_wh]
-        boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)]
+        boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)] # boxes = list of (1, 5)
 
         # find the max number of boxes
         max_boxes = 0
