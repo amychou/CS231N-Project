@@ -260,7 +260,7 @@ def _main(args):
                 image_name = name + "_iter" + str(iteration) + ext
                 image_adv.save(os.path.join(output_path, image_name), quality=90)
             if (args.bounding):
-                loss, loss_grad, = sess.run(
+                loss, grad, = sess.run(
                     [model_loss, model_loss_grad],
                     feed_dict={
                         yolo_model.input: image_data_adv,
@@ -270,9 +270,8 @@ def _main(args):
                 )
                 loss_history.append(loss)
                 print("Loss " + str(loss))
-                r = -args.learning_rate * loss_grad
             else:
-                target_grad, = sess.run(
+                grad, = sess.run(
                     [grad_target],
                     feed_dict={
                         yolo_model.input: image_data_adv,
@@ -280,7 +279,8 @@ def _main(args):
                         K.learning_phase(): 0
                     }
                 )
-                r = args.learning_rate * target_grad
+            r = -args.learning_rate * grad
+            r /= (np.max(np.abs(grad)) + 1e-7)
             if (args.clip):
                 image_data_adv = np.clip(image_data_adv+np.sign(r), image_data-eps, image_data+eps)
             else:
