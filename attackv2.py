@@ -90,9 +90,14 @@ def getImage(image_data, original_size):
     image_data_processed = image_data.copy()
     image_data_processed = image_data_processed[0] # remove batch dimension
     image_data_processed *= 256
+    print(image_data_processed)
     im =  Image.fromarray(np.uint8(image_data_processed), 'RGB')
     resized_image = im.resize(original_size, Image.BICUBIC)
     return resized_image
+
+def overlay(image_adv, image_original, image):
+    image_array = np.array(image_adv)-np.array(image_original)+np.array(image)
+    return Image.fromarray(np.uint8(image_array), 'RGB')
 
 def plot(loss_history, filepath):
     print("Plotting")
@@ -102,9 +107,6 @@ def plot(loss_history, filepath):
     plt.ylabel('loss', fontsize=14)
     plt.savefig(filepath)
     plt.close()
-
-def visualize(image_data):
-    image = getImage(image_data, original_size)
 
 
 def _main(args):
@@ -230,6 +232,8 @@ def _main(args):
             print("Iteration " + str(iteration+1))
             if (iteration%10 == 0):
                 image_adv = getImage(image_data_adv, original_size)
+                image_original = getImage(image_data, original_size)
+                image_adv = overlay(image_adv, image_original, image)
 
                 print("Saving adversarial image")
                 out_boxes, out_scores, out_classes = sess.run(
@@ -305,7 +309,6 @@ def _main(args):
                         K.learning_phase(): 0
                     }
                 )
-                grad = -grad
             if (args.sign):
                 r = -args.learning_rate * np.sign(grad)
             else:
