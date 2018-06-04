@@ -3,6 +3,9 @@ import colorsys
 import imghdr
 import os
 import random
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 
 import numpy as np
 from keras import backend as K
@@ -73,7 +76,12 @@ parser.add_argument(
     '-eps',
     '--epsilon',
     type=float,
-    default=1e-2
+    default=1e-1
+)
+parser.add_argument(
+    '--sign',
+    default=False,
+    action='store_true'
 )
 
 
@@ -85,6 +93,17 @@ def getImage(image_data, original_size):
     im =  Image.fromarray(np.uint8(image_data_processed), 'RGB')
     resized_image = im.resize(original_size, Image.BICUBIC)
     return resized_image
+
+def plot(loss_history, filepath):
+    print("Plotting")
+    plt.figure()
+    plt.plot(loss_history, color='black')
+    plt.xlabel('iteration', fontsize=14)
+    plt.ylabel('loss', fontsize=14)
+    plt.savefig(filepath)
+
+def visualize(image_data):
+    image = getImage(image_data, original_size)
 
 
 def _main(args):
@@ -105,7 +124,9 @@ def _main(args):
         output_path += 'class_'
     output_path += 'lr'+str(args.learning_rate)
     if (args.clip):
-        output_path += 'clip'
+        output_path += 'clip' + str(eps)
+    if (args.sign):
+        output_path += '_signed'
     output_path = os.path.expanduser(output_path)
     print("Output folder " + output_path)
 
@@ -259,6 +280,9 @@ def _main(args):
                 name, ext = os.path.splitext(image_file)
                 image_name = name + "_iter" + str(iteration) + ext
                 image_adv.save(os.path.join(output_path, image_name), quality=90)
+                plot(loss_history, os.path.join(output_path, 'loss_' + name + "_iter" + str(iteration) + '.png'))
+                negative_image = getImage(image_data_adv-image_data, original_size)
+                negative_image.save(os.path.join(output_path, 'neg_' + image_name), quality=90)
             if (args.bounding):
                 loss, grad, = sess.run(
                     [model_loss, model_loss_grad],
@@ -279,10 +303,13 @@ def _main(args):
                         K.learning_phase(): 0
                     }
                 )
-            r = -args.learning_rate * grad
-            r /= (np.max(np.abs(grad)) + 1e-7)
+            if (args.sign):
+                r = -args.learning_rate * np.sign(grad)
+            else:    
+                r = -args.learning_rate * grad
+                r /= (np.max(np.abs(grad)) + 1e-7)
             if (args.clip):
-                image_data_adv = np.clip(image_data_adv+np.sign(r), image_data-eps, image_data+eps)
+                image_data_adv = np.clip(image_data_adv+r, image_data-eps, image_data+eps)
             else:
                 image_data_adv = image_data_adv+r
     sess.close()
