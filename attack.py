@@ -83,7 +83,16 @@ parser.add_argument(
     default=False,
     action='store_true'
 )
-
+parser.add_argument(
+    '--images',
+    type=int,
+    default=-1
+)
+parser.add_argument(
+    '--accuracy',
+    default=False,
+    action='store_true'
+)
 
 '''converts numpy array to PIL image'''
 def getImage(image_data, original_size):
@@ -94,18 +103,66 @@ def getImage(image_data, original_size):
     resized_image = im.resize(original_size, Image.BICUBIC)
     return resized_image
 
-def plot(loss_history, filepath):
+def plot(loss_history, filepath, yax):
     print("Plotting")
     plt.figure()
     plt.plot(loss_history, color='black')
     plt.xlabel('iteration', fontsize=14)
-    plt.ylabel('loss', fontsize=14)
+    plt.ylabel(yax, fontsize=14)
     plt.savefig(filepath)
     plt.close()
 
 def visualize(image_data):
     image = getImage(image_data, original_size)
 
+def load_pascal_annotation(filename, class_to_index):
+    """
+    for a given index, load image and bounding boxes info from XML file
+    :param index: index of a specific image
+    :return: record['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
+    """
+    import xml.etree.ElementTree as ET
+
+    tree = ET.parse(filename)
+    objs = tree.findall('object')
+    num_objs = len(objs)
+
+    boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+    gt_classes = np.zeros((num_objs), dtype=np.int32)
+
+    # Load object bounding boxes into a data frame.
+    for ix, obj in enumerate(objs):
+        bbox = obj.find('bndbox')
+        # Make pixel indexes 0-based
+        x1 = float(bbox.find('xmin').text) - 1
+        y1 = float(bbox.find('ymin').text) - 1
+        x2 = float(bbox.find('xmax').text) - 1
+        y2 = float(bbox.find('ymax').text) - 1
+        cls = class_to_index[obj.find('name').text.lower().strip()]
+        boxes[ix, :] = [x1, y1, x2, y2]
+        gt_classes[ix] = cls
+
+    return zip(boxes, gt_classes)
+
+def get_iou(ground_truth, top, left, bottom, right, c):
+    iou = 0
+    for tb, tc in ground_truth:
+        if c != tc:
+            continue
+
+        x11, y11, x12, y12 = left, top, right, bottom
+        x21, y21, x22, y22 = tb[0], tb[1], tb[2], tb[3]
+
+        xA = max(x11, x21)
+        yA = max(y11, y21)
+        xB = min(x12, x22)
+        yB = min(y12, y22)
+
+        interArea = max((xB - xA + 1), 0) * max((yB - yA + 1), 0)
+        boxAArea = (x12 - x11 + 1) * (y12 - y11 + 1)
+        boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
+        iou = max(iou, interArea / (boxAArea + boxBArea - interArea))
+    return iou
 
 def _main(args):
     model_path = os.path.expanduser(args.model_path)
@@ -115,6 +172,7 @@ def _main(args):
     test_path = os.path.expanduser(args.test_path)
     eps = args.epsilon
     iters = args.iterations
+    images = args.images
 
 
     # Customize output path
@@ -140,6 +198,7 @@ def _main(args):
     with open(classes_path) as f:
         class_names = f.readlines()
     class_names = [c.strip() for c in class_names]
+    class_to_index = dict((class_names[i], i) for i in range(len(class_names)))
 
     with open(anchors_path) as f:
         anchors = f.readline()
@@ -197,7 +256,10 @@ def _main(args):
     model_loss = yolo_loss(arg, anchors, len(class_names))
     model_loss_grad, = K.gradients(model_loss, yolo_model.input)
 
-    for image_file in os.listdir(test_path):
+    for img_count, image_file in enumerate(os.listdir(test_path)):
+        if images != -1 and img_count > images:
+            break
+
         try:
             image_type = imghdr.what(os.path.join(test_path, image_file))
             if not image_type:
@@ -226,6 +288,7 @@ def _main(args):
 
         print("Generating adversarial image")
         loss_history = []
+        accuracy_history = []
         for iteration in range(iters):
             print("Iteration " + str(iteration+1))
             if (iteration%10 == 0):
@@ -261,7 +324,6 @@ def _main(args):
                     left = max(0, np.floor(left + 0.5).astype('int32'))
                     bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
                     right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-                    print(label, (left, top), (right, bottom))
 
                     if top - label_size[1] >= 0:
                         text_origin = np.array([left, top - label_size[1]])
@@ -278,13 +340,43 @@ def _main(args):
                         fill=colors[c])
                     draw.text(text_origin, label, fill=(0, 0, 0), font=font)
                     del draw
+
+                if (args.accuracy and iteration > 0):
+                    bounding_file = image_file[:-3] + "xml"
+                    ground_truth = list(load_pascal_annotation(os.path.join(test_path, bounding_file), class_to_index))
+                    iou_per_box = []
+
+                    # Average of max IOU for each bounding box
+                    for i, c in reversed(list(enumerate(out_classes))):
+                        # Predicted bounding box
+                        predicted_class = class_names[c]
+                        box = out_boxes[i]
+                        score = out_scores[i]
+
+                        top, left, bottom, right = box
+                        top = max(0, np.floor(top + 0.5).astype('int32'))
+                        left = max(0, np.floor(left + 0.5).astype('int32'))
+                        bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                        right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+
+                        # Calculating IOU
+                        iou = get_iou(ground_truth, top, left, bottom, right, c)
+                        iou_per_box.append(iou)
+
+                    accuracy_history.append(np.mean(iou_per_box))
+                    print("Current Accuracy:", iou_per_box)
+
                 name, ext = os.path.splitext(image_file)
                 image_name = name + "_iter" + str(iteration) + ext
                 image_adv.save(os.path.join(output_path, image_name), quality=90)
                 if (args.bounding):
-                    plot(loss_history, os.path.join(output_path, 'loss_' + name + "_iter" + str(iteration) + '.png'))
+                    plot(loss_history, os.path.join(output_path, 'loss_' + name + "_iter" + str(iteration) + '.png'), "loss")
+                if (args.accuracy):
+                    plot(accuracy_history, os.path.join(output_path, 'accuracy_' + name + "_iter" + str(iteration) + '.png'), "accuracy")
+                negative_image = getImage(image_data_adv-image_data, original_size)
                 negative_image = getImage(image_data_adv-image_data, original_size)
                 negative_image.save(os.path.join(output_path, 'neg_' + image_name), quality=90)
+
             if (args.bounding):
                 loss, grad, = sess.run(
                     [model_loss, model_loss_grad],

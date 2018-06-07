@@ -322,7 +322,7 @@ def yolo_filter_boxes(boxes, box_confidence, box_class_probs, threshold=.6):
     classes = tf.boolean_mask(box_classes, prediction_mask)
     return boxes, scores, classes
 
-def yolo_filter_boxes_adv(boxes, box_confidence, box_class_probs, threshold=.6, target_class=0):
+def yolo_filter_boxes_adv(boxes, box_confidence, box_class_probs, threshold=.6, target_class=46):
     """Filter YOLO boxes based on object and class confidence."""
     box_scores = box_confidence * box_class_probs
     box_classes = K.argmax(box_scores, axis=-1)
@@ -342,7 +342,7 @@ def yolo_eval_adv(yolo_outputs,
               max_boxes=10,
               score_threshold=.6,
               iou_threshold=.5,
-              target_class=0):
+              target_class=46):
     """Evaluate YOLO model on given input batch and return filtered boxes."""
     box_xy, box_wh, box_confidence, box_class_probs = yolo_outputs
     boxes = yolo_boxes_to_corners(box_xy, box_wh)

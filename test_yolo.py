@@ -11,7 +11,7 @@ from keras import backend as K
 from keras.models import load_model
 from PIL import Image, ImageDraw, ImageFont
 
-from yad2k.models.keras_yolo import yolo_eval, yolo_head
+from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_adv
 
 parser = argparse.ArgumentParser(
     description='Run a YOLO_v2 style detection model on test images..')
@@ -108,7 +108,8 @@ def _main(args):
     # TODO: Wrap these backend operations with Keras layers.
     yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
     input_image_shape = K.placeholder(shape=(2, ))
-    boxes, scores, classes = yolo_eval_adbv(
+    print(yolo_outputs, input_image_shape, args.score_threshold, args.iou_threshold)
+    boxes, scores, classes, target_scores = yolo_eval_adv(
         yolo_outputs,
         input_image_shape,
         score_threshold=args.score_threshold,
