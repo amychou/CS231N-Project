@@ -392,7 +392,7 @@ def _main(args):
                 grad, = sess.run(
                     [grad_target],
                     feed_dict={
-                        yolo_model.input: image_data,
+                        yolo_model.input: image_data_adv,
                         input_image_shape: [image.size[1], image.size[0]],
                         K.learning_phase(): 0
                     }
